@@ -19,7 +19,11 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:publish": "changeset publish",
+    "release": "npm run build && changeset publish"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -35,6 +39,8 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^0.5.0",
+    "@changesets/cli": "^2.27.10",
     "@tailwindcss/typography": "^0.5.15",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
