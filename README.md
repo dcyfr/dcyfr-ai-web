@@ -4,6 +4,8 @@
 
 Perfect for building modern web applications with type-safe APIs, server-side rendering, and production-grade architecture patterns.
 
+> **📦 Starter Template** — This is a **starter template** for cloning, not an npm package. Use `git clone` or download the source to create your own full-stack web application. This package is marked `private: true` and is not published to npm.
+
 ## Features
 
 ✅ **Modern Stack** — Next.js 14 App Router with TypeScript 5.7+  
