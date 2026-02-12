@@ -256,8 +256,8 @@ export class PostsAPI extends BaseAPIClient {
   /**
    * Delete post (requires authentication)
    */
-  async delete(id: number): Promise<{ success: boolean }> {
-    return this.delete(`/api/posts/${id}`);
+  async deletePost(id: number): Promise<{ success: boolean }> {
+    return super.delete(`/api/posts/${id}`);
   }
 }
 
@@ -358,7 +358,7 @@ export async function examplePostsCRUD() {
     console.log('Updated post:', updated);
 
     // Delete post
-    await api.posts.delete(newPost.id);
+    await api.posts.deletePost(newPost.id);
     console.log('Post deleted');
   } catch (error) {
     if (error instanceof APIError) {

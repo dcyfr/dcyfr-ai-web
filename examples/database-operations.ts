@@ -14,7 +14,7 @@
  */
 
 import { db } from '@/db/connection';
-import { users, posts, type InsertUser, type InsertPost } from '@/db/schema';
+import { users, posts, type NewUser, type NewPost } from '@/db/schema';
 import { eq, and, or, like, gte, lte, desc, asc, sql, count, avg } from 'drizzle-orm';
 
 // ============================================================================
@@ -47,7 +47,7 @@ export async function findPostsAdvanced(filters: {
 
   // Filter by publication date
   if (filters.publishedAfter) {
-    conditions.push(gte(posts.createdAt, filters.publishedAfter));
+    conditions.push(gte(posts.createdAt, filters.publishedAfter.toISOString()));
   }
 
   // Full-text search across title and content
@@ -93,7 +93,7 @@ export async function getPostStatsByAuthor() {
       authorName: users.name,
       authorEmail: users.email,
       totalPosts: count(posts.id),
-      publishedPosts: count(posts.id).where(eq(posts.published, true)),
+      publishedPosts: sql<number>`count(case when ${posts.published} = true then 1 end)`.mapWith(Number),
       avgContentLength: avg(sql`length(${posts.content})`).mapWith(Number),
       latestPost: sql<Date>`max(${posts.createdAt})`.mapWith((val) =>
         val ? new Date(val) : null
@@ -123,24 +123,21 @@ export async function getPostStatsByAuthor() {
  * Example 3: Nested Queries with Relations
  */
 export async function getUsersWithPostCount() {
-  // Using query builder with relations
-  const usersWithPosts = await db.query.users.findMany({
-    with: {
-      posts: {
-        columns: {
-          id: true,
-          published: true,
-        },
-      },
-    },
-  });
+  // Using manual join to get post count
+  const result = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      createdAt: users.createdAt,
+      postCount: count(posts.id),
+      publishedCount: sql<number>`count(case when ${posts.published} = true then 1 end)`.mapWith(Number),
+    })
+    .from(users)
+    .leftJoin(posts, eq(posts.authorId, users.id))
+    .groupBy(users.id, users.name, users.email, users.createdAt);
 
-  // Transform to include counts
-  return usersWithPosts.map((user) => ({
-    ...user,
-    postCount: user.posts.length,
-    publishedCount: user.posts.filter((p) => p.published).length,
-  }));
+  return result;
 }
 
 /**
@@ -188,7 +185,7 @@ export async function createUserWithWelcomePost(userData: {
       .values({
         email: userData.email,
         name: userData.name,
-        password: userData.password,
+        passwordHash: userData.password,
       })
       .returning();
 
@@ -248,7 +245,7 @@ export async function transferPostOwnership(postId: number, newAuthorId: number)
       .update(posts)
       .set({
         authorId: newAuthorId,
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
       })
       .where(eq(posts.id, postId))
       .returning();
@@ -278,7 +275,7 @@ export async function softDeletePost(postId: number, userId: number) {
       // Uncomment if you add deletedAt column:
       // deletedAt: new Date(),
       published: false, // Unpublish as alternative
-      updatedAt: new Date(),
+      updatedAt: new Date().toISOString(),
     })
     .where(and(eq(posts.id, postId), eq(posts.authorId, userId)))
     .returning();
@@ -293,7 +290,7 @@ export async function restorePost(postId: number, userId: number) {
       // Uncomment if you add deletedAt column:
       // deletedAt: null,
       published: true, // Re-publish
-      updatedAt: new Date(),
+      updatedAt: new Date().toISOString(),
     })
     .where(and(eq(posts.id, postId), eq(posts.authorId, userId)))
     .returning();
@@ -321,7 +318,7 @@ export async function findActivePosts() {
 /**
  * Example 9: Bulk Insert with Returning
  */
-export async function bulkCreatePosts(postsData: InsertPost[]) {
+export async function bulkCreatePosts(postsData: NewPost[]) {
   const inserted = await db.insert(posts).values(postsData).returning();
   return inserted;
 }
@@ -341,7 +338,7 @@ export async function publishAllDraftsByAuthor(authorId: number) {
     .update(posts)
     .set({
       published: true,
-      updatedAt: new Date(),
+      updatedAt: new Date().toISOString(),
     })
     .where(and(eq(posts.authorId, authorId), eq(posts.published, false)))
     .returning();
@@ -354,7 +351,7 @@ export async function publishAllDraftsByAuthor(authorId: number) {
  */
 export async function upsertPost(
   slug: string,
-  postData: Partial<InsertPost> & { title: string; content: string; authorId: number }
+  postData: Partial<NewPost> & { title: string; content: string; authorId: number }
 ) {
   // Check if post exists
   const existing = await db
@@ -369,7 +366,7 @@ export async function upsertPost(
       .update(posts)
       .set({
         ...postData,
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
       })
       .where(eq(posts.slug, slug))
       .returning();
@@ -406,7 +403,7 @@ export async function upsertPost(
 export async function updatePostWithVersionCheck(
   postId: number,
   currentVersion: number,
-  updates: Partial<InsertPost>
+  updates: Partial<NewPost>
 ) {
   const [updated] = await db
     .update(posts)
@@ -414,7 +411,7 @@ export async function updatePostWithVersionCheck(
       ...updates,
       // Uncomment if you add version column:
       // version: sql`${posts.version} + 1`,
-      updatedAt: new Date(),
+      updatedAt: new Date().toISOString(),
     })
     .where(
       and(
@@ -551,7 +548,7 @@ export async function getPostsWithAuthors(postIds: number[]) {
  */
 export async function getPostTrendingScore() {
   // Complex calculation that's easier with raw SQL
-  return db.execute(sql`
+  return db.all(sql`
     SELECT 
       p.id,
       p.title,
@@ -578,7 +575,7 @@ export class AdvancedPostService {
   /**
    * Create post with automatic slug generation
    */
-  static async create(data: Omit<InsertPost, 'slug'>) {
+  static async create(data: Omit<NewPost, 'slug'>) {
     const slug = this.generateSlug(data.title);
     
     return db.transaction(async (tx) => {
@@ -590,7 +587,7 @@ export class AdvancedPostService {
   /**
    * Update with version check
    */
-  static async update(id: number, updates: Partial<InsertPost>, currentVersion?: number) {
+  static async update(id: number, updates: Partial<NewPost>, currentVersion?: number) {
     return updatePostWithVersionCheck(id, currentVersion || 1, updates);
   }
 
