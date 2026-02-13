@@ -1,6 +1,6 @@
 {
   "name": "@dcyfr/ai-web",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Production-ready full-stack Next.js web application template with App Router, Drizzle ORM, JWT auth, and Tailwind CSS",
   "scripts": {
     "dev": "next dev",
