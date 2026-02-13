@@ -32,6 +32,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: 'https://registry.npmjs.org'
           cache: ''  # No cache - package is part of workspace
+          # Enable OIDC authentication
+          always-auth: true
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Verify OIDC token availability
         run: |
@@ -75,11 +78,14 @@ jobs:
         continue-on-error: true
       
       - name: Create Release Pull Request or Publish with OIDC
+        id: changesets
         uses: changesets/action@v1
         with:
           publish: npm run release
+          createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # NODE_AUTH_TOKEN is automatically populated by setup-node action for OIDC
-          # No manual NPM_TOKEN needed with Trusted Publisher
-          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ env.NODE_AUTH_TOKEN }}
+          # Pass through OIDC token environment variables for Trusted Publisher
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
