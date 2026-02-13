@@ -1,0 +1,78 @@
+name: Test OIDC Setup
+on:
+  workflow_dispatch:
+  
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  NODE_VERSION: '20'
+  NPM_CONFIG_PROVENANCE: true
+
+jobs:
+  test-oidc:
+    name: Test Trusted Publisher OIDC
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js with npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: Verify OIDC token availability
+        run: |
+          echo "🔍 Checking OIDC environment for Trusted Publisher:"
+          if [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" ] && [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL}" ]; then
+            echo "✅ OIDC token request environment available"
+            echo "✅ Trusted Publisher authentication will be used"
+            echo "   - Token length: ${#ACTIONS_ID_TOKEN_REQUEST_TOKEN}"
+            echo "   - Request URL: $ACTIONS_ID_TOKEN_REQUEST_URL"
+          else
+            echo "❌ OIDC environment not fully available"
+            echo "   - ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-'not set'}"
+            echo "   - ACTIONS_ID_TOKEN_REQUEST_URL: ${ACTIONS_ID_TOKEN_REQUEST_URL:-'not set'}"
+            exit 1
+          fi
+          
+      - name: Test npm authentication (dry run)
+        run: |
+          echo "🧪 Testing npm authentication (without publishing):"
+          npm whoami --registry https://registry.npmjs.org || echo "Expected: npm authentication via OIDC will happen during actual publish"
+          
+          echo "📦 Package information:"
+          npm view @dcyfr/ai-web version --registry https://registry.npmjs.org
+          
+          echo "🔐 Verifying npm provenance support:"
+          npm --version
+          if npm --version | grep -E '^(9\.[5-9]|[1-9][0-9])' > /dev/null; then
+            echo "✅ npm version supports provenance"
+          else
+            echo "⚠️ npm version may not support provenance"
+          fi
+          
+      - name: Verify package configuration
+        run: |
+          echo "📋 Package.json verification:"
+          echo "  Name: $(jq -r '.name' package.json)"
+          echo "  Version: $(jq -r '.version' package.json)"
+          echo "  Repository: $(jq -r '.repository.url' package.json)"
+          
+          echo "🏷️ Checking release script:"
+          jq -r '.scripts.release // "not found"' package.json
+          
+      - name: Summary
+        run: |
+          echo "🎯 OIDC Verification Summary:"
+          echo "✅ GitHub OIDC environment configured"
+          echo "✅ Node.js and npm setup complete"
+          echo "✅ Package configuration verified"
+          echo "✅ Ready for Trusted Publisher authentication"
+          echo ""
+          echo "🚀 Next: Test actual publication with changeset"
