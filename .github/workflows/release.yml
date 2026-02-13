@@ -30,10 +30,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
           cache: ''  # No cache - package is part of workspace
-          # No registry-url: prevents setup-node from writing _authToken=${NODE_AUTH_TOKEN}
-          # to ~/.npmrc, which would override OIDC Trusted Publisher authentication.
-          # NPM_CONFIG_PROVENANCE=true (set in env) handles OIDC auth automatically.
+          # registry-url writes _authToken=${NODE_AUTH_TOKEN} to ~/.npmrc.
+          # changesets/action detects OIDC, exchanges JWT for a granular access token,
+          # and sets NODE_AUTH_TOKEN — npm reads it from the ~/.npmrc slot above.
       
       - name: Verify OIDC token availability
         run: |
